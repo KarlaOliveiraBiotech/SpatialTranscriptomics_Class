@@ -1,1 +1,23 @@
-# SpatialTranscriptomics_Class
+# SpatialTranscriptomics Class
+
+Este repositório abrange parte das aulas ministradas na disciplina de **Bioinformática Translacional em Oncologia: interpretação crítica de dados ômicos**, ministrada no Programa de Pós-Graduação Strictu Sensu em Oncologia do Instituto Nacional de Câncer.
+---
+
+## Sobre
+Vamos trabalhar as análises bioinformáticas de Transcriptômica Espacial com dados disponilibizados pela empresa 10x.
+
+--- 
+
+## Material do curso
+Parte 1: Introdução ao Xenium
+
+---
+## Autora
+
+Desenvolvido por **Karla Oliveira**.
+
+- LinkedIn: https://www.linkedin.com/in/oliveira-karla/
+- E-mail: karla.oliveira.biotech@gmail.com
+- Orcid: https://orcid.org/0000-0003-4144-1163
+
+---
