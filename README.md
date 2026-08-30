@@ -1,4 +1,3 @@
-https://karlaoliveirabiotech.github.io/SpatialTranscriptomics_Class/Tutorial.html
 # SpatialTranscriptomics Class
 
 ---
