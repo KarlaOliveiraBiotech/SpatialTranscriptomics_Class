@@ -38,6 +38,15 @@ Karla Oliveira
 - [7. Informações Adicionais](#7-informações-adicionais)
 - [8. Referências](#8-referências)
 
+<style type="text/css">
+body, p, li, td, th {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+}
+strong, b {
+  font-weight: 700 !important;
+}
+</style>
+
 ``` r
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
@@ -56,7 +65,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 # 1. Setup
 
 Antes de começar, vamos limpar o ambiente e definir o diretório de
-trabalho:
+trabalho.
 
 ``` r
 rm(list=ls())
@@ -189,7 +198,7 @@ painel. Funcionam na seguinte estrutura:
 
 <img src="https://cdn.10xgenomics.com/image/upload/v1676496915/software-support/Xenium-onboard-analysis/CAS-analysis-codebook.png" alt="" width="50%" style="display: block; margin: auto;" />
 
-Existem alguns pontos-chave nas *codewords*: <br>
+Existem alguns pontos-chave nas *codewords*:
 
 - **Negative control codewords**: são codewords que não possuem sondas
   correspondentes a esse código. São escolhidas para atender aos mesmos
@@ -269,11 +278,11 @@ xenium.obj$nucleus_area <- cells_info[colnames(xenium.obj), "nucleus_area"]
 # 3. Análise Exploratória (QC)
 
 As etapas a seguir constituem análise exploratória e são realizadas para
-entendermos o que foi gerado pelo Xenium.<br>
+entendermos o que foi gerado pelo Xenium.
 
 Primeiro, vamos plotar gráficos dos genes por célula (nFeature_Xenium),
 transcritos por célula (nCount_Xenium), área das células segmentadas e a
-razão núcleo/célula.<br>
+razão núcleo/célula.
 
 ``` r
 # Padrão de tema a ser aplicado aos plots dessa sessão, evitando repetição de código.
@@ -626,8 +635,8 @@ Queremos identificar os clusters no nosso dataset usando a função
 (resolution), que controla a granularidade matemática da detecção de
 comunidades no grafo.
 
-- *Valores mais* **altos** *de resolução* separam subpopulações;
-- *Valores mais* **baixos** *de resolução* capturam melhor os linhagens
+- Valores mais **altos** de resolução separam subpopulações;
+- Valores mais **baixos** de resolução capturam melhor os linhagens
   principais.
 
 Em geral, para paineis Xenium, a resolução fica entre 0.2 e 0.4. No
@@ -656,7 +665,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9719
     ## Number of communities: 13
-    ## Elapsed time: 7 seconds
+    ## Elapsed time: 6 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -683,7 +692,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9523
     ## Number of communities: 27
-    ## Elapsed time: 6 seconds
+    ## Elapsed time: 5 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -692,7 +701,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9480
     ## Number of communities: 29
-    ## Elapsed time: 6 seconds
+    ## Elapsed time: 7 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -701,7 +710,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9443
     ## Number of communities: 33
-    ## Elapsed time: 6 seconds
+    ## Elapsed time: 7 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -719,7 +728,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9362
     ## Number of communities: 36
-    ## Elapsed time: 6 seconds
+    ## Elapsed time: 7 seconds
 
 ``` r
 # Nomes reais das colunas geradas
@@ -821,7 +830,7 @@ xenium.obj <- FindClusters(object = xenium.obj,
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9480
     ## Number of communities: 29
-    ## Elapsed time: 9 seconds
+    ## Elapsed time: 6 seconds
 
 Vamos plotar
 
