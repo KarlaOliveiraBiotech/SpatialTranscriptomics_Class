@@ -1,0 +1,6 @@
+Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/
+*.tar.gz
+*.csv.gz
+*.parquet
+*.rds
+*.RData

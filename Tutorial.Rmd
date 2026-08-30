@@ -1,0 +1,611 @@
+---
+title: "Tutorial de Transcriptômica Espacial (Xenium) - Introdução"
+author: "Karla Oliveira"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+  toc: true
+toc_float: true
+theme: united
+highlight: tango
+---
+  
+```{r setup, include = TRUE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# 0. Informações sobre esse Tutorial
+
+- Este notebook apresenta um fluxo de trabalho inicial para análises de Spatial Transcriptomics a partir de dados da plataforma Xenium. 
+- As análises referem-se a uma amostra única de tecido neural murino (Subset CTX-HP).
+- Quando mais de um dataset (amostra) está presente, é importante fazer a integração dos dados.
+- Não são utilizadas ferramentas de anotação por referência como RCTD ou label transfer.
+
+# 1. Setup
+
+Antes de começar, vamos limpar o ambiente e definir o diretório de trabalho:
+
+```{r env, echo = FALSE}
+rm(list=ls())
+
+setwd("/Users/karlaoliveira/Documents/Karla/Projects/Learning_Spatial_Transcriptomics/Class")
+```
+
+## Instalação de pacotes
+
+O tutorial requer os pacotes abaixo. Se não os tiver instalado, descomente as linhas.
+
+```{r install-packages, echo = TRUE, eval = FALSE}
+# if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+# install.packages(c("Seurat",
+#                    "sf",
+#                    "tidyverse",
+#                    "patchwork",
+#                    "magrittr",
+#                    "arrow",
+#                    "clustree",
+#                    "remotes"))
+# BiocManager::install("glmGamPoi")
+```
+
+## Carregamento dos pacotes
+
+```{r load-libraries, echo = TRUE}
+library(Seurat)
+library(sf)
+library(tidyverse)
+library(patchwork)
+library(magrittr)
+library(arrow)
+library(clustree)
+library(igraph)
+```
+
+# 2. Dataset
+
+## Download
+
+- Faça o download do dataset de interesse e unzip os arquivos; 
+- Essa etapa é realizada uma única vez. 
+- Execute-a no terminal ou descomente o código abaixo caso deseje baixar via R.
+
+```{r download-dataset, echo = TRUE}
+# system("wget https://cf.10xgenomics.com/supp/xenium/analysis-workshop/one-sample-analysis.tar.gz")
+# system("tar -xzvf ./one-sample-analysis.tar.gz")
+```
+
+## Carregando o dataset pelo Seurat
+
+```{r load-dataset, echo TRUE}
+xenium.obj <- LoadXenium(
+  data.dir = "Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/",
+  fov = "fov",
+  segmentations = "cell",
+  flip.xy = TRUE
+)
+
+# Overview do objeto
+xenium.obj
+```
+
+## Conversão: parquet --> csv
+
+Convertendo **.parquet** em **.csv.gz** (Se necessário)
+
+A partir do Xenium Analyzer v3.0, alguns dados vêm no formato **.parquet**. No Seurat v5.2.0+, o carregamento é direto. Para versões anteriores, converta conforme o código abaixo, usando "arrow".
+
+```{r parquet-csv, echo = TRUE}
+cells         <- read_parquet("Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/cells.parquet")
+cells$cell_id <- as.character(cells$cell_id)
+
+cells_gz      <- gzfile("Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/cells.csv.gz", "w")
+
+# Write the csv file and close it
+write.csv(cells, file = cells_gz, row.names = FALSE, quote = FALSE)
+close(cells_gz)
+```
+
+## Estrutura de objetos Seurat
+
+O objeto **xenium.obj** segue a classe S4. Acessamos seus slots ("compartimentos") com o operador @.
+
+```{r, echo = TRUE}
+slotNames(xenium.obj)
+glimpse(xenium.obj@meta.data)
+```
+
+Perceba que, o metadado contém múltiplas informações. Mas antes de entendê-las é preciso esclarecer uma coisa: os paineis do Xenium usam **codewords**.
+
+## Codewords
+
+São uma espécie de "palavras-chave" atribuídas a cada um dos genes do painel. 
+Funcionam na seguinte estrutura:
+
+```{r codeword, echo=FALSE, out.width = "50%", fig.align = "center"}
+knitr::include_graphics("https://cdn.10xgenomics.com/image/upload/v1676496915/software-support/Xenium-onboard-analysis/CAS-analysis-codebook.png")
+```
+
+Existem alguns pontos-chave nas *codewords*: <br>
+
+- **Negative control codewords**: são codewords que não possuem sondas correspondentes a esse código. São escolhidas para atender aos mesmos requisitos que os codewords regulares e podem ser usadas para avaliar a especificidade do algoritmo de decodificação;
+- **Negative control probes**: são sondas presentes nos paineis e têm como alvo sequências não biológicas. Podem ser usadas para avaliar a especificidade do ensaio;
+- **Genomic control probes**: são sondas projetadas para se ligar ao DNA genômico intergênico, mas não a nenhuma sequência de transcrito presente no tecido. Elas estão presentes no ensaio Xenium Prime;
+- **Unassigned codewords**: são codewords não utilizados. Não há nenhuma sonda em um painel de genes específico que gerará o codeword;
+- **Deprecated codewords (Blank)**: são atribuídas a codewords que não são usados no pipeline de análise embarcada Xenium.
+
+Se você der uma nova olhada no metadado, perceberá as informações seguintes:
+
+- **nCount_Xenium**: número total de transcritos (moléculas de RNA) detectados por célula, somando todos os genes do painel;
+- **nFeature_Xenium**: número de genes distintos (features) detectados por célula ou seja, quantos genes diferentes tiveram pelo menos 1 transcrito naquela célula;
+- **segmentation_method**: indica o método usado para definir os limites (boundaries) de cada célula — por exemplo, segmentação baseada em coloração de membrana/borda celular ou por expansão do núcleo ("nucleus expansion"). É importante porque afeta quantos transcritos "vazam" de células vizinhas para dentro da célula segmentada;
+- **nCount_BlankCodeword** & **nFeature_BlankCodeword**: contagens de "blank codewords" — códigos de barras (barcodes) que existem no design do painel mas não estão atribuídos a nenhum gene real. Servem para estimar a taxa de falsos positivos por decodificação incorreta de sinal óptico;
+- **nCount_ControlCodeword** & **nFeature_ControlCodeword**: similar ao anterior, mas para outra categoria de códigos-controle reservados pelo sistema (também não correspondem a genes reais);
+- **nCount_ControlProbe** & **nFeature_ControlProbe**: contagens de sondas-controle negativas — sondas desenhadas para não hibridizar com nenhum RNA real, usadas para medir ligação inespecífica (background) das sondas no tecido.
+
+
+## Definição de identidades
+
+```{r class-identity, echo = TRUE}
+# Atribui id "MouseBrain" para uma coluna meta data
+Seurat::Idents(object = xenium.obj) <- "MouseBrain" # Era "SeuratProject"
+
+# Verifica as identidades dos transcritos gerando uma tabela
+table(Idents(xenium.obj))
+```
+
+## Carregando as medidas de segmentação celular 
+
+Aqui vamos carregar os arquivos cell_area e nucleus_area.
+
+```{r load-cellSeg, echo = TRUE}
+cells_info <- read.csv("Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/cells.csv.gz")
+
+rownames(cells_info) <- cells_info$cell_id
+xenium.obj$cell_area <- cells_info[colnames(xenium.obj), "cell_area"]
+xenium.obj$nucleus_area <- cells_info[colnames(xenium.obj), "nucleus_area"]
+```
+
+- **cell_area**: a área total (em µm²) da célula inteira, conforme delimitada pela segmentação — ou seja, o polígono/máscara que o algoritmo desenhou ao redor de toda a célula (membrana/citoplasma incluído).<br>
+- **nucleus_area**: a área (em µm²) apenas do núcleo daquela mesma célula, delimitada por uma segmentação separada baseada na coloração de DNA (geralmente DAPI).
+
+# 3. Análise Exploratória (QC)
+
+As etapas a seguir constituem análise exploratória e são realizadas para entendermos o que foi gerado pelo Xenium.<br>
+
+Primeiro, vamos plotar gráficos dos genes por célula (nFeature_Xenium), transcritos por célula (nCount_Xenium), área das células segmentadas e a razão núcleo/célula.<br>
+
+
+```{r qc-histogram,  fig.width = 16, fig.height = 6, echo = TRUE}
+# Padrão de tema a ser aplicado aos plots dessa sessão, evitando repetição de código.
+plot_pattern <- theme_set(
+  theme_minimal() +
+    theme(plot.title = element_text(size = 8)))
+
+# Gráfico 1: Total de transcritos por célula
+p1 <- ggplot(xenium.obj@meta.data, aes(x = nCount_Xenium)) +
+  geom_histogram(binwidth = 100, fill = "steelblue", color = "black") +
+  ggtitle("Total transcripts per cell") +
+  plot_pattern
+
+# Gráfico 2: Transcritos únicos por célula
+p2 <- ggplot(xenium.obj@meta.data, aes(x = nFeature_Xenium)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  ggtitle("Unique transcripts per cell") +
+  plot_pattern
+
+# Gráfico 3: Área das células segmentadas
+p3 <- ggplot(xenium.obj@meta.data, aes(x = cell_area)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  ggtitle("Area of segmented cells") +
+  plot_pattern
+
+# Gráfico 4: Proporção núcleo/célula
+p4 <- ggplot(xenium.obj@meta.data, aes(x = nucleus_area / cell_area)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  ggtitle("Nucleus ratio") +
+  plot_pattern
+
+# Combina os 4 gráficos em uma única linha
+comb1 <- p1 + p2 + p3 + p4 + plot_layout(ncol = 4)
+
+# Exibe
+print(comb1)
+```
+
+Quanto à razão **nucleus_area/cell_area**: 
+
+- Valor próximo de 1 (núcleo ocupando quase toda a célula): pode indicar problema de segmentação — célula muito pequena, mal segmentada, ou às vezes um artefato onde só o núcleo foi capturado sem citoplasma detectado.
+- Valor muito baixo (núcleo muito pequeno em relação à célula): pode indicar segmentação excessivamente generosa (célula "vazando" para o espaço de células vizinhas) ou tipos celulares que naturalmente têm relação núcleo/citoplasma diferente (por exemplo, neurônios grandes vs. células imunes pequenas).
+- Células com proporções muito extremas (muito perto de 0 ou muito perto de 1) costumam ser candidatas a exclusão no QC, pois sinalizam segmentação ruim, e não necessariamente uma célula biologicamente real.
+
+
+## Identificação de Outliers via MAD
+
+O Desvio Absoluto Médio (MAD), uma métrica robusta para entender a dispersão dos dados. Outliers são definidos como valores maiores que estão mais que **k** vezes o MAD.
+
+```{r mad, echo = TRUE}
+Definição da função
+mad_upper <- function(x, desv_mad = 3) {
+  median(x) + desv_mad * mad(x)
+}
+
+# Limite superior para 'nFeature_Xenium'
+upper_nFeature <- mad_upper(xenium.obj$nFeature_Xenium)
+
+# Limite superior para 'nCount_Xenium'
+upper_nCount <- mad_upper(xenium.obj$nCount_Xenium)
+```
+
+A seguir, vamos adicionar esses limites de _outliers_ aos violinos.<br>
+O limite inferior foi arbitrário, uma vez que, se usarmos a função que calcula o número de desvios de MAD, teremos valores negativos.
+
+
+A seguir, vamos ver o gráfico de violino (violinPlot):
+
+```{r qc-violin, fig.width = 8, fig.height = 6, echo = TRUE}
+# Padrão de tema a ser aplicado aos plots dessa sessão
+plot_pattern <- theme_set(
+  theme_minimal() +
+    theme(
+      plot.title  = element_text(size = 10),
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      axis.title.x = element_blank()
+    )
+)
+
+# Gráfico 5: Total de transcritos por célula
+p5 <- VlnPlot(xenium.obj, features = "nFeature_Xenium", pt.size = 0) +
+  plot_pattern
+
+
+# Gráfico 6: Transcritos únicos por célula
+p6 <- VlnPlot(xenium.obj, features = "nCount_Xenium", pt.size = 0) +
+  plot_pattern
+
+# Gráfico 7: Total de transcritos por célula com linhas de limite
+p7 <- p5 +
+  geom_hline(yintercept = upper_nFeature,
+             linetype = "dashed",
+             color = "blue") +
+  geom_hline(yintercept = 10,  # Escolhido com base no violin
+             linetype = "dashed", color = "red")
+
+# Gráfico 8: Transcritos únicos por célula com linhas de limite
+p8 <- p6 +
+  geom_hline(yintercept = upper_nCount, linetype = "dashed", color = "blue") +
+  geom_hline(yintercept = 10, linetype = "dashed", color = "red")
+
+# Exibe os dois últimos gráficos
+p7 + p8 + plot_layout(ncol = 2)
+```
+
+Para gerar o plot do total de transcritos.
+
+```{r image-transcripts, echo = TRUE}
+Gráfico 9: Total de transcritos espacialmente usando cutoff 95th percentil
+p9 <- ImageFeaturePlot(xenium.obj, fov = "fov",
+                        features = c("nCount_Xenium"),
+                        max.cutoff="q95")
+
+# Exibe imagem e violin dos transcritos
+wrap_plots(p8, p9)
+```
+
+# 4. Pré-processamento: Filtro
+
+Com base nas análises exploratórias, vamos realizar os primeiros filtros de qualidade.
+
+```{r filter-cells, echo = TRUE}
+# Número de células antes de filtrar
+num_cells_before <- ncol(xenium.obj)
+
+# Filtra genes expressos em pelo menos 5 células. Pode ser ajustado
+xenium.obj <- subset(xenium.obj,
+                     subset = nFeature_Xenium >= 5) %>%
+  suppressWarnings()
+
+# Filtrar células com pelo menos 25 contagens. Pode ser ajustado
+xenium.obj <- subset(xenium.obj,
+                     subset = nCount_Xenium >= 25) %>%
+  suppressWarnings()
+
+# Número de células após a filtragem
+num_cells_after <- ncol(xenium.obj)
+
+# Exibe a redução
+cat(sprintf("Células antes: %d | Células após: %d | Removidas: %d\n",
+            num_cells_before, num_cells_after, (num_cells_before - num_cells_after)))
+```
+
+Para escolher uma região de interesse (ROI), podemos usar uma filtragem por coordenadas ou visual.<br>
+Ao realizar a escolha visual, você verá um pop-up em que deverá selecionar a área de interesse.
+
+```{r roi, eval = FALSE, echo = TRUE}
+# ID das células que passaram pelo filtro de contagem
+remaining_seurat_ids <- colnames(xenium.obj)
+
+# Filtragem por coordenadas
+roi_cells <- cells_info %>%
+  filter(x_centroid >= 2000 & x_centroid <= 4000) %>%
+  filter(y_centroid >= 1500 & y_centroid <= 2500) %>%
+  filter(cell_id %in% remaining_seurat_ids)
+
+# Subset do objeto xenium.obj a partir das coordenadas das células
+xenium.coord <- subset(xenium.obj, cells = roi_cells$cell_id)
+
+# Seleção Visual (Laço Interativo)
+selected_cell_ids <- InteractiveSpatialPlot(object = xenium.obj,
+                                            overlay_image = FALSE)
+
+# Subset do objeto xenium.obj a partir das IDs das células
+xenium.roi <- subset(xenium.obj,
+                     cells = selected_cell_ids)
+```
+
+# 5. Processamento e Clusterização
+
+Se você escolheu uma região de interesse na etapa anterior, as análises abaixo serão feitas com o respectivo nome do objeto utilizado. Ajuste se necessário.
+
+## 5.1 Normalização
+
+```{r transform, echo = TRUE}
+# Normaliza e Escalona dados. Mandatório antes de qualquer redução de dimensionalidade
+xenium.obj <- SCTransform(object = xenium.obj,
+                          assay = "Xenium")
+```
+
+**SCTransform()** é uma das formas de normalizar dados que utiliza Modelos Lineares Generalizados (GLMs) de distribuição Binomial Negativa.<br>
+Essa distribuição assume que a variância é maior que a média, por isso é muito utilizada em dados de RNAseq, incluindo Spatial Transcriptomics.<br>
+Assim, a função modela a contagem esperada de cada gene com base na profundidade de sequenciamento da célula e no nível geral de expressão do gene.<br>
+Para cada gene, obtemos uma estimativa de "expressão real" — trata-se de um valor corrigido de expressão gênica que leva em conta fatores como a profundidade de sequenciamento da célula, o nível geral de expressão do gene e fatores técnicos específicos do gene.<br>
+
+Além disso, essa função funciona como um comando unificado que substitui as seguintes funções:
+
+- NormalizeData(): Função de normalização. Divide as contagens de características (genes) pelas contagens totais de cada célula, multiplica por um fator de escala (padrão: 10.000) e aplica uma transformação de logaritmo natural *ln(x + 1)*;
+- FindVariableFeatures(): Identifica genes com alta variação entre células analisando a relação média-variância nos dados normalizados por logaritmo; 
+- ScaleData(): Ajusta a média da expressão gênica para 0 e a variância para 1 entre as células, evitando que genes de alta expressão dominem os resultados. 
+
+
+## 5.2 Redução de dimensionalidade
+
+Após a normalização dos dados, vamos reduzir sua dimensionalidade através das técnicas de PCA e UMAP.
+
+### 5.2.1 Principal Component Analysis (PCA)
+
+- Genes altamente expressos exibem naturalmente uma variância muito maior do que genes com baixa expressão, unicamente devido ao escalonamento técnico;
+- Então usamos PCA após a transformação dos dados pois se o aplicássemos diretamente aos dados brutos, os primeiros componentes principais refletiriam simplesmente a profundidade de sequenciamento e os genes altamente expressos, mascarando as verdadeiras estruturas biológicas subjacentes;
+- O PCA é calculado com um maior número de dimensões (15-30) antes do UMAP para tornar a computação mais rápida; 
+- Depois disso, verificamos a quantidade de PCs mediante ElbowPlot, no ponto onde acontece o "cotovelo", ou numericamente para as análises subsequentes. Calma que você já vai entender!
+
+```{r pca, echo = TRUE}
+# Componentes Principais (PCA)
+xenium.obj <- RunPCA(object = xenium.obj,
+                     npcs = 30,           # PCA com 30 dimensões
+                     features = rownames(xenium.obj))
+# Verificação visual (ElbowPlot)
+ElbowPlot(object = xenium.obj,
+          ndims = 30)                     # Mesmo número de dimensões do PCA
+
+
+# Verificação numérica:
+## Determine o % de variação associado a cada PC
+pct <- xenium.obj[["pca"]]@stdev / sum(xenium.obj[["pca"]]@stdev) * 100
+
+## Calcule o % cumulativo de cada PC
+cumu <- cumsum(pct)
+
+## Determine qual componente principal (PC) apresenta uma porcentagem acumulada superior a 90% e uma porcentagem de variação associada inferior a 5.
+co1 <- which(cumu > 90 & pct < 5)[1]
+
+## Exibe
+co1
+
+## Determine a diferença entre a variação do PC e o PC subsequente
+co2 <- sort(which((pct[1:length(pct) - 1] - pct[2:length(pct)]) > 0.1), decreasing = T)[1] + 1
+
+## Último ponto onde a mudança na % de variação é superior a 0,1%
+co2
+
+## Determine o mínimo dos dois cálculos
+pcs <- min(co1, co2)
+
+## Exibe
+pcs
+```
+
+Perceba que pelo ElbowPlot, parece que as 25 primeiras componentes principais são suficientes para explicar a maior parte da variação dos dados. <br>
+No entanto, tivemos certeza a partir dos valores de "pcs". Aqui, tanto *co1* quanto *co2* tiveram o mesmo valor. Isso não ocorre sempre. 
+
+### 5.2.2 Uniform Manifold Approximation and Projection (UMAP)
+
+
+```{r umap, echo = TRUE}
+xenium.obj <- RunUMAP(object = xenium.obj,
+                      dims = 1:pcs,      # Aqui ajustamos o valor (npcs do PCA ou o determinado pelo Elbow/Numericamente)
+                      verbose = FALSE)
+```
+
+## 5.3. Vizinhos e Clusterização
+
+### Vizinhos
+Primeiro começamos encontrando os vizinhos mais próximos com base no PCA anterior.
+
+A função **FindNeighbors()** constroi um grafo com os vizinhos mais próximos compartilhados (SNN) calculando a sobreposição de vizinhança (índice de Jaccard) entre cada célula e seus *k.param* vizinhos mais próximos.
+
+
+```{r neighbors, echo = TRUE}
+# Encontrando vizinhos mais próximos️
+xenium.obj <- FindNeighbors(object = xenium.obj,
+                            reduction = "pca",
+                            dims = 1:pcs)        # Vizinho com base em PCA
+```
+
+
+### Clusters
+
+Em geral, para paineis Xenium, a resolução fica entre 0.2 e 0.4. 
+Aqui, estamos mostrando como testar diferentes resoluções e escolher de acordo com a Clustree.<br>
+Essa etapa pode ser repetida múltiplas vezes pois, se não houver consenso e o valor numérico ficar muito claro, será necessário escolher a partir de informações biológicas (genes que diferenciam um cluster do outro).<br>
+Aqui, vamos aprender um pouco sobre como escolher numericamente o valor de resolução. 
+
+```{r resolution, echo = TRUE}
+# Teste múltiplas resoluções
+resols <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+
+for (res in resols) {
+  xenium.obj <- FindClusters(object = xenium.obj, resolution = res)
+}
+
+# Nomes reais das colunas geradas
+cols_res <- paste0("SCT_snn_res.", resols)
+
+# Confere se as colunas de cada resolução foram criadas corretamente
+colnames(xenium.obj@meta.data)[grep("snn_res", colnames(xenium.obj@meta.data))]
+
+# Gráfico 10: Clustree
+p10 <- clustree(x = xenium.obj@meta.data[, cols_res, drop = FALSE],
+                prefix = "SCT_snn_res.",
+                show_axis = TRUE,
+                node_colour = "sc3_stability"
+                )
+#Exibe
+p10
+
+# Grafo em vez do plot
+tree_graph <- clustree(xenium.obj@meta.data[, cols_res, drop = FALSE],
+                       prefix = "SCT_snn_res.",
+                       return = "graph")
+
+# Extraia os atributos de cada nó (inclui sc3_stability calculado internamente)
+node_data <- igraph::as_data_frame(tree_graph,
+                                   what = "vertices")
+
+# Confira os nomes das colunas disponíveis
+colnames(node_data)
+
+# Escolha o nó mais estável (maior valor de estabilidade média)
+
+stable_node <- node_data %>%
+  group_by(SCT_snn_res.) %>%   # ajuste esse nome conforme o que aparecer no colnames() acima
+  summarise(estabilidade_media = mean(sc3_stability, na.rm = TRUE)) %>%
+  arrange(desc(estabilidade_media))
+
+# Exibe
+stable_node
+```
+
+O que isso sugere na prática: 
+
+Vimos que alguns resultados estão bem próximos, ao passo que a resolução 0.8 está diferente dos demais. Assim, precisamos saber que devemos:
+
+- Evitar 0.8: a queda de estabilidade é grande o suficiente para ser um sinal real de sobre-fragmentação (over-clustering), não só ruído estatístico;
+- Entre 0.1, 0.2, 0.3 e 0.5: a diferença é pequena demais para decidir só com esse número. Nesse caso, o critério de desempate deveria ser biológico, não estatístico. E isso é feito identificando a resolução que melhor separa os tipos celulares que esperados nesse tecido (usando FeaturePlot()/VlnPlot() dos marcadores conhecidos), e qual delas mostra coerência espacial mais clara no ImageDimPlot().
+
+Não vamos fazer isso nesse tutorial. No caso, definimos a resolução de 0.2.
+
+```{r clusters, echo = TRUE}
+xenium.obj <- FindClusters(object = xenium.obj,
+                           resolution = 0.2)  # Clusters com resolução de 0.2
+```
+
+Vamos plotar
+```{r plot, echo = TRUE}
+# Gráfico 11: Redução de dimensionalidade por PCA
+p11 <- DimPlot(object = xenium.obj,
+        label = FALSE,
+        label.box = FALSE,
+        pt.size = 0.2,
+        cols = 'polychrome',
+        reduction = "pca"
+        )
+
+# Gráfico 12: Redução da dimensionalidade por UMAP
+p12 <- DimPlot(object = xenium.obj,
+        label = TRUE,
+        label.box = TRUE,
+        pt.size = 0.2,
+        cols = 'polychrome',
+        reduction = "umap"
+        ) +
+  NoAxes()
+```
+
+# 6. Visualização Espacial e Marcadores
+
+## 6.1 Visualização espacial
+
+O plot p12 da sessão anterior nos mostra que na resolução de 0.2, foram encontrados 20 clusters celulares. Algumas células do cluster 5, por exemplo, estão próximas do cluster 3.<br> 
+O cluster 2 também está dividido em duas regiões distintas no gráfico.<br>
+Para definir quais clusters permanecerão, é preciso avaliar espacialmente os marcadores de cada cluster e anotar os clusters adequadamente. Vamos mostrar um pouco, mas isso é realizado até o encontro da resolução ideal. 
+
+```{r spatial-view, echo = TRUE}
+# Gráfico 13: Features de interesse (transcritos) no UMAP
+p13 <- FeaturePlot(object = xenium.obj,
+                  features = c("Cux2", "Gad1", "Slc17a7", "Sst"),
+                  reduction = "umap") &
+  NoAxes()
+
+# Gráfico 14: Distribuição espacial dos genes no tecido
+p14 <- ImageDimPlot(xenium.obj,
+                    cols = "polychrome",
+                    size = 0.75)
+
+# Gráfico 15: Distribuição do gene "Gad1" no tecido
+p15 <- ImageFeaturePlot(xenium.obj,
+                        features = "Slc17a7",
+                        axes = TRUE,
+                        max.cutoff = "q90")
+
+# Exibição dos gráficos
+p13
+p14
+p15
+```
+
+## 6.2 Marcadores 
+
+Genes marcadores por cluster a partir da função FildAllMarkers() do Seurat.<br>
+Perceba que aqui: 
+
+- only.pos = TRUE: retorna somente marcadores positivos;
+- min.pct = 0.05: genes expressos em pelo menos 5% das células de qualquer uma das populações celulares comparadas;
+- logfc.threshold = 1: reporta pelo menos 2 fold de diferença.
+
+```{r markers, echo = TRUE}
+FindAllMarkesr
+all.markers <- FindAllMarkers(xenium.obj, only.pos = TRUE,
+                              min.pct = 0.05, logfc.threshold = 1)
+
+# Salva a tabela gerada
+write.table(all.markers, "marker_genes_clusters.csv",
+            col.names=TRUE, row.names=FALSE, quote=FALSE, sep=",")
+```
+
+Para conferir os marcadores de uma forma mais objetiva, podemos gerar os plots de violino, usando os genes que resultaram da tabela anterior. Para isso, vamos apresentar com o gene "Bdnf", que foi um dos genes específicos do cluster 0: 
+
+```{r markers-violin, echo = TRUE}
+# Gráfico 16: Violin Plot do gene "Bdnf" por cluster
+p16 <- VlnPlot(object = xenium.obj,
+        features = "Bdnf",
+        layer="data",
+        pt.size = 0,
+        cols = DiscretePalette(n = length(levels(xenium.obj)),
+                               palette = "polychrome")) +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1, vjust = 0.5))
+
+# Exibe
+p16
+```
+
+Um gene por si só não faz milagre! Então, você deve cruzar esse resultado com outros marcadores, para confirmar ou refinar essa hipótese antes de atribuir um rótulo definitivo a cada cluster.
+
+# 7. Informações Adicionais
+- Em projetos reais (principalmente com paineis maiores, tecidos mais heterogêneos, ou preocupação com erros de segmentação), ferramentas de anotação por referência como RCTD ou label transfer do Seurat são o padrão usado na literatura. Podemos conversar sobre eles depois.
+- Após a anotação dos clusters, é importante analisar as vias envolvidas, colocalização de clusters para identificar interações entre eles e de fato tornar as análises biologicamente relevantes. 
+
+# 8. Referências
+- GitHub Pedro Videira Pinho: https://github.com/pedrovp161/spatools
+- Material **IV WORKSHOP LBBC - 2025**, incluindo slides e Google Colab dos alunos: Cristóvão de Lanna, Ph.D.; Gabriela Rapozo, M.Sc.; Gabriel Fonseca, M.Sc.; Ana Carolina, M.Sc; Pedro Pinho, B.Sc.
+- Tutoriais e outros materiais 10x: https://www.10xgenomics.com/ , https://www.10xgenomics.com/analysis-guides/xenium-downstream-analysis-in-r-tutorial
+- BioStatSquid: https://biostatsquid.com/
+- Satija Lab: https://satijalab.org/seurat/articles/seurat5_spatial_vignette_2
