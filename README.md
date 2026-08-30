@@ -1,3 +1,4 @@
+https://karlaoliveirabiotech.github.io/SpatialTranscriptomics_Class/Tutorial.html
 # SpatialTranscriptomics Class
 
 ---
@@ -17,7 +18,7 @@ Vamos trabalhar as análises bioinformáticas de Transcriptômica Espacial com d
 ## Material do curso
 
 Parte 1: Introdução ao Xenium
-- **Tutorial de Transcriptômica Espacial (HTML Renderizado):** [Clique aqui para visualizar o Tutorial com os Plots](https://htmlpreview.github.io/?https://github.com/KarlaOliveiraBiotech/SpatialTranscriptomics_Class/blob/master/Tutorial.html)
+- **Tutorial de Transcriptômica Espacial (HTML Renderizado):** [Clique aqui para visualizar o Tutorial em html com os Plots](https://karlaoliveirabiotech.github.io/SpatialTranscriptomics_Class/Tutorial.html)
 - **Código-fonte em R:** [Tutorial.Rmd](Tutorial.Rmd)
 
 ---
