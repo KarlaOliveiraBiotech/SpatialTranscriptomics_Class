@@ -4,3 +4,5 @@ Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/
 *.parquet
 *.rds
 *.RData
+.Rproj.user
+*.zip
