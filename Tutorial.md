@@ -48,7 +48,7 @@ strong, b {
 </style>
 
 ``` r
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, dpi = 96)
 ```
 
 # 0. Informações sobre esse Tutorial
@@ -118,18 +118,6 @@ library(igraph)
 ```
 
 ## Carregando o dataset pelo Seurat
-
-``` r
-xenium.obj <- LoadXenium(
-  data.dir = "Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/",
-  fov = "fov",
-  segmentations = "cell",
-  flip.xy = TRUE
-)
-
-# Overview do objeto
-xenium.obj
-```
 
     ## An object of class Seurat 
     ## 541 features across 36602 samples within 4 assays 
@@ -665,7 +653,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9719
     ## Number of communities: 13
-    ## Elapsed time: 6 seconds
+    ## Elapsed time: 7 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -692,7 +680,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9523
     ## Number of communities: 27
-    ## Elapsed time: 5 seconds
+    ## Elapsed time: 7 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -701,7 +689,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9480
     ## Number of communities: 29
-    ## Elapsed time: 7 seconds
+    ## Elapsed time: 6 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -710,7 +698,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9443
     ## Number of communities: 33
-    ## Elapsed time: 7 seconds
+    ## Elapsed time: 6 seconds
     ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
     ## 
     ## Number of nodes: 36276
@@ -728,7 +716,7 @@ for (res in resols) {
     ## Running Louvain algorithm...
     ## Maximum modularity in 10 random starts: 0.9362
     ## Number of communities: 36
-    ## Elapsed time: 7 seconds
+    ## Elapsed time: 6 seconds
 
 ``` r
 # Nomes reais das colunas geradas
@@ -748,8 +736,8 @@ p10 <- clustree(
     prefix = "SCT_snn_res.", 
     show_axis = TRUE, 
     node_colour = "sc3_stability",
-    node_text_size = 2.5,         # Reduz o tamanho do texto interno das bolinhas
-    node_size_range = c(2,7)   # Ajusta o diâmetro mínimo e máximo dos círculos
+    node_text_size = 3,       # Reduz o tamanho do texto interno das bolinhas
+    node_size_range = c(3,7)  # Ajusta o diâmetro mínimo e máximo dos círculos
 )
 
 # Exibe
@@ -902,7 +890,7 @@ p14 <- ImageDimPlot(xenium.obj,
                     cols = "polychrome",
                     size = 0.75)
 
-# Gráfico 15: Distribuição do gene "Gad1" no tecido
+# Gráfico 15: Distribuição do gene "Slc17a7" no tecido
 p15 <- ImageFeaturePlot(xenium.obj,
                         features = "Slc17a7",
                         axes = TRUE,
@@ -918,7 +906,7 @@ cat("Gráfico 13: Features de interesse (transcritos) no UMAP")
 p13
 ```
 
-![](Tutorial_files/figure-gfm/spatial-view-1.png)<!-- -->
+<img src="Tutorial_files/figure-gfm/spatial-view-1.png" alt="" width="100%" />
 
 ``` r
 cat("Gráfico 14: Distribuição espacial dos genes no tecido")
@@ -930,19 +918,19 @@ cat("Gráfico 14: Distribuição espacial dos genes no tecido")
 p14
 ```
 
-![](Tutorial_files/figure-gfm/spatial-view-2.png)<!-- -->
+<img src="Tutorial_files/figure-gfm/spatial-view-2.png" alt="" width="100%" />
 
 ``` r
-cat("Gráfico 15: Distribuição do gene 'Gad1' no tecido")
+cat("Gráfico 15: Distribuição do gene 'Scl17a7' no tecido")
 ```
 
-    ## Gráfico 15: Distribuição do gene 'Gad1' no tecido
+    ## Gráfico 15: Distribuição do gene 'Scl17a7' no tecido
 
 ``` r
 p15
 ```
 
-![](Tutorial_files/figure-gfm/spatial-view-3.png)<!-- -->
+<img src="Tutorial_files/figure-gfm/spatial-view-3.png" alt="" width="100%" />
 
 ## 6.2 Marcadores
 
@@ -977,7 +965,10 @@ p16 <- VlnPlot(object = xenium.obj,
         pt.size = 0,
         cols = DiscretePalette(n = length(levels(xenium.obj)),
                                palette = "polychrome")) +
-  theme(axis.text.x = element_text(angle = 0, hjust = 1, vjust = 0.5))
+  theme(axis.text.x = element_text(angle = 0, 
+                                   hjust = 0.5, 
+                                   vjust = 1, 
+                                   size = 7))
 
 # Exibe
 p16
@@ -1001,7 +992,8 @@ antes de atribuir um rótulo definitivo a cada cluster.
 
 # 8. Referências
 
-- GitHub Pedro Videira Pinho: <https://github.com/pedrovp161/spatools>
+- GitHub Pedro Videira Pinho:
+  <https://github.com/pedrovp161/spatialCourse>
 - Material **IV WORKSHOP LBBC - 2025**, incluindo slides e Google Colab
   dos alunos: Cristóvão de Lanna, Ph.D.; Gabriela Rapozo, M.Sc.; Gabriel
   Fonseca, M.Sc.; Ana Carolina, M.Sc; Pedro Pinho, B.Sc.
