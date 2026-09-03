@@ -1,7 +1,7 @@
 Tutorial de Transcriptômica Espacial (Xenium) - Introdução
 ================
 Karla Oliveira
-2026-09-02
+2026-09-03
 
 - [0. Informações sobre esse
   Tutorial](#0-informações-sobre-esse-tutorial)
@@ -19,7 +19,7 @@ Karla Oliveira
   - [Carregando as medidas de segmentação
     celular](#carregando-as-medidas-de-segmentação-celular)
 - [3. Análise Exploratória (QC)](#3-análise-exploratória-qc)
-  - [Identificação de Outliers via
+  - [Identificação de *Outliers* via
     MAD](#identificação-de-outliers-via-mad)
 - [4. Pré-processamento: Filtro](#4-pré-processamento-filtro)
 - [5. Processamento](#5-processamento)
@@ -127,6 +127,18 @@ library(leidenbase)
 
 ## Carregando o dataset pelo Seurat
 
+``` r
+xenium.obj <- LoadXenium(
+  data.dir = "Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/",
+  fov = "fov",
+  segmentations = "cell",
+  flip.xy = TRUE
+)
+
+# Overview do objeto
+xenium.obj
+```
+
     ## An object of class Seurat 
     ## 541 features across 36602 samples within 4 assays 
     ## Active assay: Xenium (248 features, 0 variable features)
@@ -172,16 +184,16 @@ glimpse(xenium.obj@meta.data)
 
     ## Rows: 36,602
     ## Columns: 10
-    ## $ orig.ident               <fct> SeuratProject, SeuratProject, SeuratProject, SeuratProject,…
-    ## $ nCount_Xenium            <dbl> 384, 146, 81, 314, 639, 270, 354, 97, 250, 495, 344, 326, 3…
-    ## $ nFeature_Xenium          <int> 96, 64, 48, 94, 97, 90, 88, 56, 72, 103, 103, 79, 79, 80, 9…
-    ## $ segmentation_method      <chr> "cell", "cell", "cell", "cell", "cell", "cell", "cell", "ce…
-    ## $ nCount_BlankCodeword     <dbl> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,…
-    ## $ nFeature_BlankCodeword   <int> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,…
-    ## $ nCount_ControlCodeword   <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
-    ## $ nFeature_ControlCodeword <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
-    ## $ nCount_ControlProbe      <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
-    ## $ nFeature_ControlProbe    <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ orig.ident               <fct> SeuratProject, SeuratProject, SeuratProject, SeuratProject, Seurat…
+    ## $ nCount_Xenium            <dbl> 384, 146, 81, 314, 639, 270, 354, 97, 250, 495, 344, 326, 351, 424…
+    ## $ nFeature_Xenium          <int> 96, 64, 48, 94, 97, 90, 88, 56, 72, 103, 103, 79, 79, 80, 91, 87, …
+    ## $ segmentation_method      <chr> "cell", "cell", "cell", "cell", "cell", "cell", "cell", "cell", "c…
+    ## $ nCount_BlankCodeword     <dbl> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, …
+    ## $ nFeature_BlankCodeword   <int> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, …
+    ## $ nCount_ControlCodeword   <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, …
+    ## $ nFeature_ControlCodeword <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, …
+    ## $ nCount_ControlProbe      <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, …
+    ## $ nFeature_ControlProbe    <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, …
 
 Perceba que, o metadado contém múltiplas informações. Mas antes de
 entendê-las é preciso esclarecer uma coisa: os paineis do Xenium usam
@@ -189,7 +201,7 @@ entendê-las é preciso esclarecer uma coisa: os paineis do Xenium usam
 
 ## Codewords
 
-São uma espécie de “palavras-chave” atribuídas a cada um dos genes do
+São uma espécie de “dicionário” atribuídas a cada um dos genes do
 painel. Funcionam na seguinte estrutura:
 
 <img src="https://cdn.10xgenomics.com/image/upload/v1676496915/software-support/Xenium-onboard-analysis/CAS-analysis-codebook.png" alt="" width="50%" style="display: block; margin: auto;" />
@@ -345,10 +357,10 @@ Vamos adicionar o “nucleus_ratio” ao nosso objeto xenium:
 xenium.obj$nucleus_ratio <- xenium.obj$nucleus_area / xenium.obj$cell_area
 ```
 
-## Identificação de Outliers via MAD
+## Identificação de *Outliers* via MAD
 
 O Desvio Absoluto Médio (MAD), uma métrica robusta para entender a
-dispersão dos dados. Outliers são definidos como valores maiores que
+dispersão dos dados. *Outliers* são definidos como valores maiores que
 estão mais que **k** vezes o MAD.
 
 ``` r
@@ -871,11 +883,10 @@ O que isso sugere na prática:
 Vimos que alguns resultados estão bem próximos, ao passo que a resolução
 0.5 está bem diferente dos demais. Assim, precisamos saber que devemos
 saber que **o melhor critério de desempate é biológico (e não apenas
-meramente numérico/estatístico** ser biológica, não estatístico. E isso
-é feito identificando a resolução que melhor separa os tipos celulares
-que esperados nesse tecido (usando FeaturePlot()/VlnPlot() dos
-marcadores conhecidos), e qual delas mostra coerência espacial mais
-clara no ImageDimPlot().
+meramente numérico/estatístico)**. E isso é feito identificando a
+resolução que melhor separa os tipos celulares que esperados nesse
+tecido (usando FeaturePlot()/VlnPlot() dos marcadores conhecidos), e
+qual delas mostra coerência espacial mais clara no ImageDimPlot().
 
 Não vamos fazer isso nesse tutorial. No caso, definimos a resolução de
 0.5 (porque é a menor resolução com divisão entre clusters –\> apenas o
