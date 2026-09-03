@@ -1,7 +1,7 @@
 Tutorial de Transcriptômica Espacial (Xenium) - Introdução
 ================
 Karla Oliveira
-2026-08-30
+2026-09-02
 
 - [0. Informações sobre esse
   Tutorial](#0-informações-sobre-esse-tutorial)
@@ -68,8 +68,14 @@ Antes de começar, vamos limpar o ambiente e definir o diretório de
 trabalho.
 
 ``` r
+# Limpa ambiente
 rm(list=ls())
+
+# Define diretório
 setwd("/Users/karlaoliveira/Documents/Karla/Projects/Learning_Spatial_Transcriptomics/Class/")
+
+# Set seed
+set.seed(42)
 ```
 
 ## Instalação de pacotes
@@ -86,7 +92,8 @@ descomente as linhas.
 #                    "magrittr",
 #                    "arrow",
 #                    "clustree",
-#                    "remotes"))
+#                    "remotes", 
+#                    "leidenbase"))
 # BiocManager::install("glmGamPoi")
 ```
 
@@ -101,6 +108,7 @@ library(magrittr)
 library(arrow)
 library(clustree)
 library(igraph)
+library(leidenbase)
 ```
 
 # 2. Dataset
@@ -154,9 +162,9 @@ O objeto **xenium.obj** segue a classe S4. Acessamos seus slots
 slotNames(xenium.obj)
 ```
 
-    ##  [1] "assays"       "meta.data"    "active.assay" "active.ident" "graphs"      
-    ##  [6] "neighbors"    "reductions"   "images"       "project.name" "misc"        
-    ## [11] "version"      "commands"     "tools"
+    ##  [1] "assays"       "meta.data"    "active.assay" "active.ident" "graphs"       "neighbors"   
+    ##  [7] "reductions"   "images"       "project.name" "misc"         "version"      "commands"    
+    ## [13] "tools"
 
 ``` r
 glimpse(xenium.obj@meta.data)
@@ -164,16 +172,16 @@ glimpse(xenium.obj@meta.data)
 
     ## Rows: 36,602
     ## Columns: 10
-    ## $ orig.ident               <fct> SeuratProject, SeuratProject, SeuratProject, S…
-    ## $ nCount_Xenium            <dbl> 384, 146, 81, 314, 639, 270, 354, 97, 250, 495…
-    ## $ nFeature_Xenium          <int> 96, 64, 48, 94, 97, 90, 88, 56, 72, 103, 103, …
-    ## $ segmentation_method      <chr> "cell", "cell", "cell", "cell", "cell", "cell"…
-    ## $ nCount_BlankCodeword     <dbl> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0…
-    ## $ nFeature_BlankCodeword   <int> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0…
-    ## $ nCount_ControlCodeword   <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-    ## $ nFeature_ControlCodeword <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-    ## $ nCount_ControlProbe      <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-    ## $ nFeature_ControlProbe    <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
+    ## $ orig.ident               <fct> SeuratProject, SeuratProject, SeuratProject, SeuratProject,…
+    ## $ nCount_Xenium            <dbl> 384, 146, 81, 314, 639, 270, 354, 97, 250, 495, 344, 326, 3…
+    ## $ nFeature_Xenium          <int> 96, 64, 48, 94, 97, 90, 88, 56, 72, 103, 103, 79, 79, 80, 9…
+    ## $ segmentation_method      <chr> "cell", "cell", "cell", "cell", "cell", "cell", "cell", "ce…
+    ## $ nCount_BlankCodeword     <dbl> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,…
+    ## $ nFeature_BlankCodeword   <int> 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,…
+    ## $ nCount_ControlCodeword   <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ nFeature_ControlCodeword <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ nCount_ControlProbe      <dbl> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
+    ## $ nFeature_ControlProbe    <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
 
 Perceba que, o metadado contém múltiplas informações. Mas antes de
 entendê-las é preciso esclarecer uma coisa: os paineis do Xenium usam
@@ -245,7 +253,11 @@ table(Idents(xenium.obj))
 
 ## Carregando as medidas de segmentação celular
 
-Aqui vamos carregar os arquivos “cell_area” e “nucleus_area”.
+Aqui vamos carregar os arquivos “cell_area” e “nucleus_area”. Não é todo
+experimento Xenium que contém esse módulo. Muitas vezes, a segmentação é
+feita ao corar a lâmina após a corrida de transcriptômica espacial. Isso
+fornece uma camada a mais de dificuldade que deve ser considerada nas
+análises (e que não será abordada nesse breve tutorial).
 
 ``` r
 cells_info <- read.csv("Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP_outs/cells.csv.gz")
@@ -286,19 +298,19 @@ p1 <- ggplot(xenium.obj@meta.data, aes(x = nCount_Xenium)) +
 
 # Gráfico 2: Transcritos únicos por célula
 p2 <- ggplot(xenium.obj@meta.data, aes(x = nFeature_Xenium)) +
-  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  geom_histogram(binwidth = 10, fill = "#5F9EA0", color = "black") +
   ggtitle("Unique transcripts per cell") +
   plot_pattern
 
 # Gráfico 3: Área das células segmentadas
 p3 <- ggplot(xenium.obj@meta.data, aes(x = cell_area)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  geom_histogram(bins = 30, fill = "#FFB90F", color = "black") +
   ggtitle("Area of segmented cells") +
   plot_pattern
 
 # Gráfico 4: Proporção núcleo/célula
 p4 <- ggplot(xenium.obj@meta.data, aes(x = nucleus_area / cell_area)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  geom_histogram(bins = 30, fill = "#FF8C00", color = "black") +
   ggtitle("Nucleus ratio") +
   plot_pattern
 
@@ -327,6 +339,12 @@ Quanto à razão **nucleus_area/cell_area**:
   segmentação ruim, e não necessariamente uma célula biologicamente
   real.
 
+Vamos adicionar o “nucleus_ratio” ao nosso objeto xenium:
+
+``` r
+xenium.obj$nucleus_ratio <- xenium.obj$nucleus_area / xenium.obj$cell_area
+```
+
 ## Identificação de Outliers via MAD
 
 O Desvio Absoluto Médio (MAD), uma métrica robusta para entender a
@@ -350,7 +368,88 @@ A seguir, vamos adicionar esses limites de *outliers* aos violinos.<br>
 O limite inferior foi arbitrário, uma vez que, se usarmos a função que
 calcula o número de desvios de MAD, teremos valores negativos.
 
-A seguir, vamos ver o gráfico de violino (violinPlot):
+A seguir, vamos ver o gráfico de violino (violinPlot) e os boxplots
+associados:
+
+``` r
+# Padrão de tema a ser aplicado aos plots dessa sessão
+plot_pattern <- theme_set(
+  theme_minimal() +
+    theme(
+      plot.title      = element_text(size = 10),
+      axis.text.x     = element_text(angle = 0, hjust = 0.5),
+      axis.title.x    = element_blank()    
+      )
+  )
+
+# Gráfico 5: Total de transcritos por célula
+p5 <- VlnPlot(xenium.obj, 
+              features = "nFeature_Xenium", 
+              pt.size = 0, 
+              cols = "steelblue") +
+    geom_boxplot(
+        width        = 0.4,       # mais largo (padrão é ~0.1–0.2)
+        fill         = "white",   # cor de preenchimento
+        alpha        = 0.5,       # transparência (0 = invisível, 1 = opaco)
+        outlier.size = 1          # 0 esconde outliers
+    ) +
+    plot_pattern + 
+  theme(legend.position = "none")
+
+
+# Gráfico 6: Transcritos únicos por célula
+p6 <- VlnPlot(xenium.obj, 
+              features = "nCount_Xenium", 
+              pt.size = 0, 
+              cols = "#5F9EA0") +
+  geom_boxplot(
+        width        = 0.4,       
+        fill         = "white",   
+        alpha        = 0.5,       
+        outlier.size = 1          
+    ) +
+  plot_pattern +
+  theme(legend.position = "none")
+
+# Gráfico 7: Área das células segmentadas
+p7 <- VlnPlot(xenium.obj, 
+              features = "cell_area", 
+              pt.size = 0, 
+              cols = "#FFB90F") +
+  geom_boxplot(
+        width        = 0.4,       
+        fill         = "white",   
+        alpha        = 0.5,       
+        outlier.size = 1          
+    ) +
+  plot_pattern +
+  theme(legend.position = "none")
+
+# Gráfico 8: Área das células segmentadas
+p8 <- VlnPlot(xenium.obj, 
+              features = "nucleus_ratio", 
+              pt.size = 0, 
+              cols = "#FF8C00") + 
+  geom_boxplot(
+        width        = 0.4,       
+        fill         = "white",   
+        alpha        = 0.5,       
+        outlier.size = 1          
+    ) +
+  plot_pattern + 
+  theme(legend.position = "none")
+
+# Combina os 4 gráficos em uma única linha
+comb2 <- p5 + p6 + p7 + p8 + plot_layout(ncol = 4)
+
+# Exibe
+print(comb2)
+```
+
+![](Tutorial_files/figure-gfm/qc-violin-1.png)<!-- -->
+
+Se fôssemos aplicar o MAD aos violinos das contagens (nFeature_Xenium e
+nCount_Xenium), usaríamos o seguinte código:
 
 ``` r
 # Padrão de tema a ser aplicado aos plots dessa sessão
@@ -363,44 +462,40 @@ plot_pattern <- theme_set(
     )
 )
 
-# Gráfico 5: Total de transcritos por célula
-p5 <- VlnPlot(xenium.obj, features = "nFeature_Xenium", pt.size = 0) +
-  plot_pattern
 
-
-# Gráfico 6: Transcritos únicos por célula
-p6 <- VlnPlot(xenium.obj, features = "nCount_Xenium", pt.size = 0) +
-  plot_pattern
-
-# Gráfico 7: Total de transcritos por célula com linhas de limite
-p7 <- p5 +
+# Gráfico 9: Total de transcritos por célula com linhas de limite
+p9 <- p5 +
   geom_hline(yintercept = upper_nFeature,
              linetype = "dashed",
              color = "blue") +
   geom_hline(yintercept = 10,  # Escolhido com base no violin
              linetype = "dashed", color = "red")
 
-# Gráfico 8: Transcritos únicos por célula com linhas de limite
-p8 <- p6 +
+# Gráfico 10: Transcritos únicos por célula com linhas de limite
+p10 <- p6 +
   geom_hline(yintercept = upper_nCount, linetype = "dashed", color = "blue") +
   geom_hline(yintercept = 10, linetype = "dashed", color = "red")
 
 # Exibe os dois últimos gráficos
-p7 + p8 + plot_layout(ncol = 2)
+p9 + p10 + plot_layout(ncol = 2)
 ```
 
 ![](Tutorial_files/figure-gfm/qc-violin-mad-1.png)<!-- -->
 
+Que tem resultados próximos, mas não idênticos aos “outliers”
+identificados (bolinhas vistas nos limites superior e inferior dos
+gráficos)
+
 Para gerar o plot do total de transcritos.
 
 ``` r
-# Gráfico 9: Total de transcritos espacialmente usando cutoff 95th percentil
-p9 <- ImageFeaturePlot(xenium.obj, fov = "fov",
+# Gráfico 11: Total de transcritos vistos espacialmente usando cutoff 95th percentil
+p11 <- ImageFeaturePlot(xenium.obj, fov = "fov",
                         features = c("nCount_Xenium"),
                         max.cutoff="q95")
 
 # Exibe
-p9
+p11
 ```
 
 ![](Tutorial_files/figure-gfm/image-transcripts-1.png)<!-- -->
@@ -416,12 +511,18 @@ num_cells_before <- ncol(xenium.obj)
 
 # Filtra genes expressos em pelo menos 5 células. Pode ser ajustado
 xenium.obj <- subset(xenium.obj,
-                     subset = nFeature_Xenium >= 5) %>%
+                     subset = nFeature_Xenium >= 5 & 
+                       nFeature_Xenium <= upper_nFeature) %>%
   suppressWarnings()
+
+# Número de células após filtragem de nFeature_Xenium
+num_cells_after_feat <- ncol(xenium.obj)   
+
 
 # Filtrar células com pelo menos 25 contagens. Pode ser ajustado
 xenium.obj <- subset(xenium.obj,
-                     subset = nCount_Xenium >= 25) %>%
+                     subset = nCount_Xenium >= 25 &
+                       nCount_Xenium <= upper_nCount) %>%
   suppressWarnings()
 
 # Número de células após a filtragem
@@ -432,7 +533,7 @@ cat(sprintf("Células antes: %d | Células após: %d | Células removidas: %d\n"
             num_cells_before, num_cells_after, (num_cells_before - num_cells_after)))
 ```
 
-    ## Células antes: 36602 | Células após: 36276 | Células removidas: 326
+    ## Células antes: 36602 | Células após: 35235 | Células removidas: 1367
 
 Para escolher uma região de interesse (ROI), podemos usar uma filtragem
 por coordenadas ou visual.<br> Ao realizar a escolha visual, você verá
@@ -453,11 +554,13 @@ xenium.coord <- subset(xenium.obj, cells = roi_cells$cell_id)
 
 # Seleção Visual (Laço Interativo)
 selected_cell_ids <- InteractiveSpatialPlot(object = xenium.obj,
-                                            overlay_image = FALSE)
+                                            overlay_image = FALSE) %>% 
+  suppressWarnings()
 
 # Subset do objeto xenium.obj a partir das IDs das células
 xenium.roi <- subset(xenium.obj,
-                     cells = selected_cell_ids)
+                     cells = selected_cell_ids) %>% 
+  suppressWarnings()
 ```
 
 # 5. Processamento
@@ -472,9 +575,56 @@ A normalização e escalonamento dos dados é etapa mandatório antes de
 qualquer redução de dimensionalidade.
 
 ``` r
+# Salva log(counts + 1) por célula antes do SCT
+counts_raw <- GetAssayData(xenium.obj, assay = "Xenium", layer = "counts")
+expr_before <- log1p(Matrix::colSums(counts_raw))   # total de transcritos por célula (log)
+
+# SCTransform
 xenium.obj <- SCTransform(object = xenium.obj,
                           assay = "Xenium")
+
+# Pega os resíduos de Pearson (output principal do SCT) por célula
+sct_data   <- GetAssayData(xenium.obj, 
+                           assay = "SCT", 
+                           layer = "scale.data")
+expr_after <- Matrix::colMeans(sct_data)            # média dos resíduos por célula
 ```
+
+Verificamos agora a transformação (essa etapa foi incluída apenas para
+que você entenda a importância de normalizar/escalonar os dados).
+
+``` r
+# Monta df antes e após SCTransform
+df_before <- data.frame(valor = expr_before)
+df_after  <- data.frame(valor = expr_after)
+
+# Gráfico 13: Plot das contagens antes da normalização
+p13 <- ggplot(df_before, aes(x = valor)) +
+    geom_density(fill = "tomato", color = "tomato", alpha = 0.4, linewidth = 0.8) +
+    labs(
+        title = "Antes do SCTransform (log counts)",
+        x     = "log(total counts + 1)",
+        y     = "Densidade"
+    ) +
+    plot_pattern +
+    theme(legend.position = "none")
+
+# Gráfico 14: Plot das contagens após a normalização
+p14 <- ggplot(df_after, aes(x = valor)) +
+    geom_density(fill = "steelblue", color = "steelblue", alpha = 0.4, linewidth = 0.8) +
+    labs(
+        title = "Após SCTransform (resíduos de Pearson)",
+        x     = "Média dos resíduos por célula",
+        y     = "Densidade"
+    ) +
+    plot_pattern +
+    theme(legend.position = "none")
+
+# Exibe 
+p13 + p14 + plot_layout(ncol = 2)
+```
+
+![](Tutorial_files/figure-gfm/check-sctransform-1.png)<!-- -->
 
 **SCTransform()** é uma das formas de normalizar dados que utiliza
 Modelos Lineares Generalizados (GLMs) de distribuição Binomial
@@ -641,84 +791,14 @@ resolução.
 resols <- c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
 
 for (res in resols) {
-  xenium.obj <- FindClusters(object = xenium.obj, resolution = res)
+  xenium.obj <- FindClusters(object = xenium.obj, 
+                             resolution = res,
+                             # Algoritmo de Leiden = 4. Louvain = 1 (padrão da função)  
+                             algorithm = 4,
+                             random.seed = 45
+                             )
 }
-```
 
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9719
-    ## Number of communities: 13
-    ## Elapsed time: 7 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9637
-    ## Number of communities: 21
-    ## Elapsed time: 5 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9579
-    ## Number of communities: 24
-    ## Elapsed time: 6 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9523
-    ## Number of communities: 27
-    ## Elapsed time: 7 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9480
-    ## Number of communities: 29
-    ## Elapsed time: 6 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9443
-    ## Number of communities: 33
-    ## Elapsed time: 6 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9401
-    ## Number of communities: 34
-    ## Elapsed time: 6 seconds
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9362
-    ## Number of communities: 36
-    ## Elapsed time: 6 seconds
-
-``` r
 # Nomes reais das colunas geradas
 cols_res <- paste0("SCT_snn_res.", resols)
 
@@ -726,22 +806,23 @@ cols_res <- paste0("SCT_snn_res.", resols)
 colnames(xenium.obj@meta.data)[grep("snn_res", colnames(xenium.obj@meta.data))]
 ```
 
-    ## [1] "SCT_snn_res.0.1" "SCT_snn_res.0.2" "SCT_snn_res.0.3" "SCT_snn_res.0.4"
-    ## [5] "SCT_snn_res.0.5" "SCT_snn_res.0.6" "SCT_snn_res.0.7" "SCT_snn_res.0.8"
+    ## [1] "SCT_snn_res.0.1" "SCT_snn_res.0.2" "SCT_snn_res.0.3" "SCT_snn_res.0.4" "SCT_snn_res.0.5"
+    ## [6] "SCT_snn_res.0.6" "SCT_snn_res.0.7" "SCT_snn_res.0.8"
 
 ``` r
-# Gráfico 10: Clustree
-p10 <- clustree(
+# Gráfico 15: Clustree
+p15 <- clustree(
     x = xenium.obj@meta.data[, cols_res, drop = FALSE], 
     prefix = "SCT_snn_res.", 
     show_axis = TRUE, 
     node_colour = "sc3_stability",
     node_text_size = 3,       # Reduz o tamanho do texto interno das bolinhas
     node_size_range = c(3,7)  # Ajusta o diâmetro mínimo e máximo dos círculos
-)
+    ) +
+  scale_color_gradient(low = "lightyellow", high = "steelblue")
 
 # Exibe
-p10
+p15
 ```
 
 <img src="Tutorial_files/figure-gfm/resolution-1.png" alt="" width="100%" />
@@ -760,8 +841,7 @@ node_data <- igraph::as_data_frame(tree_graph,
 colnames(node_data)
 ```
 
-    ## [1] "node"          "SCT_snn_res."  "cluster"       "size"         
-    ## [5] "sc3_stability"
+    ## [1] "node"          "SCT_snn_res."  "cluster"       "size"          "sc3_stability"
 
 ``` r
 # Escolha o nó mais estável (maior valor de estabilidade média)
@@ -777,63 +857,43 @@ stable_node
     ## # A tibble: 8 × 2
     ##   SCT_snn_res. estabilidade_media
     ##   <fct>                     <dbl>
-    ## 1 0.5                       0.366
-    ## 2 0.2                       0.355
-    ## 3 0.3                       0.340
-    ## 4 0.4                       0.332
-    ## 5 0.6                       0.326
-    ## 6 0.7                       0.320
-    ## 7 0.1                       0.293
-    ## 8 0.8                       0.283
+    ## 1 0.3                       0.374
+    ## 2 0.2                       0.370
+    ## 3 0.6                       0.360
+    ## 4 0.4                       0.358
+    ## 5 0.7                       0.348
+    ## 6 0.1                       0.326
+    ## 7 0.8                       0.321
+    ## 8 0.5                       0.312
 
 O que isso sugere na prática:
 
-Vimos que alguns resultados estão bem próximos, ao passo que as
-resoluções 0.1 e 0.8 estão diferentes dos demais. Assim, precisamos
-saber que devemos:
-
-- Evitar 0.8 e 0.1: a queda de estabilidade é grande o suficiente para
-  ser um sinal real de sobre-fragmentação (over-clustering), não só
-  ruído estatístico;
-- Entre 0.2, 0.3 e 0.5: a diferença é pequena demais para decidir só com
-  esse número. Nesse caso, o critério de desempate deveria ser
-  biológico, não estatístico. E isso é feito identificando a resolução
-  que melhor separa os tipos celulares que esperados nesse tecido
-  (usando FeaturePlot()/VlnPlot() dos marcadores conhecidos), e qual
-  delas mostra coerência espacial mais clara no ImageDimPlot().
+Vimos que alguns resultados estão bem próximos, ao passo que a resolução
+0.5 está bem diferente dos demais. Assim, precisamos saber que devemos
+saber que **o melhor critério de desempate é biológico (e não apenas
+meramente numérico/estatístico** ser biológica, não estatístico. E isso
+é feito identificando a resolução que melhor separa os tipos celulares
+que esperados nesse tecido (usando FeaturePlot()/VlnPlot() dos
+marcadores conhecidos), e qual delas mostra coerência espacial mais
+clara no ImageDimPlot().
 
 Não vamos fazer isso nesse tutorial. No caso, definimos a resolução de
-0.5.
+0.5 (porque é a menor resolução com divisão entre clusters –\> apenas o
+cluster 12 se dividiu).
 
 ``` r
 xenium.obj <- FindClusters(object = xenium.obj,
-                           resolution = 0.5)  # Clusters com resolução de 0.5
+                           resolution = 0.5,  # Clusters com resolução de 0.5
+                           algorithm = 4,
+                           random.seed = 45
+                           )  
 ```
-
-    ## Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
-    ## 
-    ## Number of nodes: 36276
-    ## Number of edges: 1306193
-    ## 
-    ## Running Louvain algorithm...
-    ## Maximum modularity in 10 random starts: 0.9480
-    ## Number of communities: 29
-    ## Elapsed time: 6 seconds
 
 Vamos plotar
 
 ``` r
-# Gráfico 11: Redução de dimensionalidade por PCA
-p11 <- DimPlot(object = xenium.obj,
-        label = FALSE,
-        label.box = FALSE,
-        pt.size = 0.2,
-        cols = 'polychrome',
-        reduction = "pca"
-        )
-
-# Gráfico 12: Redução da dimensionalidade por UMAP
-p12 <- DimPlot(object = xenium.obj,
+# Gráfico 16: UMAP da clusterização na resolução 0.5
+p16 <- DimPlot(object = xenium.obj,
         label = TRUE,
         label.box = TRUE,
         pt.size = 0.2,
@@ -843,34 +903,22 @@ p12 <- DimPlot(object = xenium.obj,
   NoAxes()
 
 # Exibe
-cat("Gráfico 11: Redução de dimensionalidade por PCA")
+cat("Gráfico 16: UMAP da clusterização na resolução 0.5")
 ```
 
-    ## Gráfico 11: Redução de dimensionalidade por PCA
+    ## Gráfico 16: UMAP da clusterização na resolução 0.5
 
 ``` r
-p11
+p16
 ```
 
 ![](Tutorial_files/figure-gfm/plot-1.png)<!-- -->
-
-``` r
-cat("Gráfico 12: Redução de dimensionalidade por UMAP")
-```
-
-    ## Gráfico 12: Redução de dimensionalidade por UMAP
-
-``` r
-p12
-```
-
-![](Tutorial_files/figure-gfm/plot-2.png)<!-- -->
 
 # 6. Visualização Espacial e Marcadores
 
 ## 6.1 Visualização espacial
 
-O plot p12 da sessão anterior nos mostra que na resolução de 0.2, foram
+O plot p16 da sessão anterior nos mostra que na resolução de 0.5, foram
 encontrados 20 clusters celulares. Algumas células do cluster 5, por
 exemplo, estão próximas do cluster 3.<br> O cluster 2 também está
 dividido em duas regiões distintas no gráfico.<br> Para definir quais
@@ -879,55 +927,55 @@ cada cluster e anotar os clusters adequadamente. Vamos mostrar um pouco,
 mas isso é realizado até o encontro da resolução ideal.
 
 ``` r
-# Gráfico 13: Features de interesse (transcritos) no UMAP
-p13 <- FeaturePlot(object = xenium.obj,
+# Gráfico 17: Features de interesse (transcritos) no UMAP
+p17 <- FeaturePlot(object = xenium.obj,
                   features = c("Cux2", "Gad1", "Slc17a7", "Sst"),
                   reduction = "umap") &
   NoAxes()
 
-# Gráfico 14: Distribuição espacial dos genes no tecido
-p14 <- ImageDimPlot(xenium.obj,
+# Gráfico 18: Distribuição espacial dos genes no tecido
+p18 <- ImageDimPlot(xenium.obj,
                     cols = "polychrome",
                     size = 0.75)
 
-# Gráfico 15: Distribuição do gene "Slc17a7" no tecido
-p15 <- ImageFeaturePlot(xenium.obj,
+# Gráfico 19: Distribuição do gene "Slc17a7" no tecido
+p19 <- ImageFeaturePlot(xenium.obj,
                         features = "Slc17a7",
                         axes = TRUE,
                         max.cutoff = "q90")
 
 # Exibição dos gráficos
-cat("Gráfico 13: Features de interesse (transcritos) no UMAP")
+cat("Gráfico 17: Features de interesse (transcritos) no UMAP")
 ```
 
-    ## Gráfico 13: Features de interesse (transcritos) no UMAP
+    ## Gráfico 17: Features de interesse (transcritos) no UMAP
 
 ``` r
-p13
+p17
 ```
 
 <img src="Tutorial_files/figure-gfm/spatial-view-1.png" alt="" width="100%" />
 
 ``` r
-cat("Gráfico 14: Distribuição espacial dos genes no tecido")
+cat("Gráfico 18: Distribuição espacial dos genes no tecido")
 ```
 
-    ## Gráfico 14: Distribuição espacial dos genes no tecido
+    ## Gráfico 18: Distribuição espacial dos genes no tecido
 
 ``` r
-p14
+p18
 ```
 
 <img src="Tutorial_files/figure-gfm/spatial-view-2.png" alt="" width="100%" />
 
 ``` r
-cat("Gráfico 15: Distribuição do gene 'Scl17a7' no tecido")
+cat("Gráfico 19: Distribuição do gene 'Scl17a7' no tecido")
 ```
 
-    ## Gráfico 15: Distribuição do gene 'Scl17a7' no tecido
+    ## Gráfico 19: Distribuição do gene 'Scl17a7' no tecido
 
 ``` r
-p15
+p19
 ```
 
 <img src="Tutorial_files/figure-gfm/spatial-view-3.png" alt="" width="100%" />
@@ -958,8 +1006,8 @@ Para isso, vamos apresentar com o gene “Bdnf”, que foi um dos genes
 específicos do cluster 0:
 
 ``` r
-# Gráfico 16: Violin Plot do gene "Bdnf" por cluster
-p16 <- VlnPlot(object = xenium.obj,
+# Gráfico 20: Violin Plot do gene "Bdnf" por cluster
+p20 <- VlnPlot(object = xenium.obj,
         features = "Bdnf",
         layer="data",
         pt.size = 0,
@@ -970,15 +1018,31 @@ p16 <- VlnPlot(object = xenium.obj,
                                    vjust = 1, 
                                    size = 7))
 
+
+# Outro marcador
+p21 <- VlnPlot(object = xenium.obj,
+        features = "Cd53",
+        layer="data",
+        pt.size = 0,
+        cols = DiscretePalette(n = length(levels(xenium.obj)),
+                               palette = "polychrome")) +
+  theme(axis.text.x = element_text(angle = 0, 
+                                   hjust = 0.5, 
+                                   vjust = 1, 
+                                   size = 7))
+
 # Exibe
-p16
+p20 / p21 +
+    plot_layout(guides = "collect") &
+    theme(legend.position = "right")
 ```
 
 ![](Tutorial_files/figure-gfm/markers-violin-1.png)<!-- -->
 
 Um gene por si só não faz milagre! Então, você deve cruzar esse
 resultado com outros marcadores, para confirmar ou refinar essa hipótese
-antes de atribuir um rótulo definitivo a cada cluster.
+antes de atribuir um rótulo definitivo a cada cluster. Isso se chama
+**anotação**.
 
 # 7. Informações Adicionais
 
@@ -989,6 +1053,8 @@ antes de atribuir um rótulo definitivo a cada cluster.
 - Após a anotação dos clusters, é importante analisar as vias
   envolvidas, colocalização de clusters para identificar interações
   entre eles e de fato tornar as análises biologicamente relevantes.
+- Essa etapa não foi incluída porque se trata de uma introdução. Logo,
+  tenha em mente que não acabou por aqui.
 
 # 8. Referências
 
@@ -1002,3 +1068,4 @@ antes de atribuir um rótulo definitivo a cada cluster.
 - BioStatSquid: <https://biostatsquid.com/>
 - Satija Lab:
   <https://satijalab.org/seurat/articles/seurat5_spatial_vignette_2>
+- StatQuest:
